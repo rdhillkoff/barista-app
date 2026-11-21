@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Barista Training Store | ระบบสั่งสินค้าห้องเทรน</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Prompt', sans-serif; }
+  </style>
+</head>
+<body class="bg-stone-100 text-stone-800">
+
+  <!-- Top Navigation -->
+  <header class="bg-amber-900 text-white sticky top-0 z-20 shadow-md">
+    <div class="max-w-5xl mx-auto px-4 py-3 flex flex-wrap justify-between items-center gap-2">
+      <div class="flex items-center gap-2">
+        <span class="text-2xl">☕</span>
+        <div>
+          <h1 class="font-bold text-lg leading-tight">Barista Training Store</h1>
+          <p class="text-xs text-amber-200">ระบบสแกนสั่งสินค้าห้องเทรน ส่งตรงเซลล์หน้าร้าน</p>
+        </div>
+      </div>
+      <div class="flex gap-2">
+        <button onclick="switchMode('customer')" id="btn-mode-customer" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-500 text-stone-950">
+          โหมดลูกค้าสั่งสินค้า
+        </button>
+        <button onclick="switchMode('staff')" id="btn-mode-staff" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-800 text-amber-100 hover:bg-amber-700">
+          โหมดเซลล์หน้าร้าน (<span id="pending-badge">0</span>)
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ==================== CUSTOMER VIEW ==================== -->
+  <main id="view-customer" class="max-w-5xl mx-auto p-4 pb-36 space-y-4">
+    <!-- Success Banner -->
+    <div id="order-success-banner" class="hidden bg-emerald-600 text-white p-4 rounded-xl shadow-lg flex items-center gap-3">
+      <span class="text-2xl">✅</span>
+      <div>
+        <p class="font-bold">ส่งรายการสั่งซื้อไปที่หน้าร้านเรียบร้อยแล้ว!</p>
+        <p class="text-sm text-emerald-100">เซลล์กำลังจัดเตรียมสินค้าให้คุณ สามารถรับสินค้าหลังจบคลาสได้ทันที</p>
+      </div>
+    </div>
+
+    <!-- Search Bar -->
+    <div class="relative">
+      <input type="text" id="search-input" oninput="renderCustomerProducts()"
+        placeholder="🔍 ค้นหาชื่อสินค้า, รหัส SKU, ยี่ห้อ, หรือสี..."
+        class="w-full px-4 py-3 rounded-xl border border-stone-300 bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-amber-600" />
+    </div>
+
+    <!-- Category Filter -->
+    <div id="category-tabs" class="flex gap-2 overflow-x-auto pb-1"></div>
+
+    <!-- Product Grid -->
+    <div id="product-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+
+    <!-- Bottom Cart Bar -->
+    <div id="cart-bar" class="hidden fixed bottom-0 left-0 right-0 bg-white border-t border-stone-200 p-4 shadow-2xl z-20">
+      <div class="max-w-5xl mx-auto flex flex-col sm:flex-row gap-3 items-center justify-between">
+        <input type="text" id="customer-name" placeholder="ระบุชื่อผู้เรียน / โต๊ะ (เช่น คุณเอ โต๊ะ 2)"
+          class="w-full sm:w-80 px-3 py-2.5 text-sm border border-stone-300 rounded-lg focus:outline-none focus:border-amber-700" />
+        <div class="w-full sm:w-auto flex items-center justify-between sm:justify-end gap-4">
+          <div class="text-right">
+            <p class="text-xs text-stone-500">รวม <span id="cart-count" class="font-bold">0</span> ชิ้น</p>
+            <p class="font-bold text-lg text-amber-900">฿<span id="cart-total">0</span></p>
+          </div>
+          <button onclick="submitOrder()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2.5 rounded-xl font-bold shadow-md transition">
+            ส่งออเดอร์ให้เซลล์
+          </button>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- ==================== STAFF VIEW ==================== -->
+  <section id="view-staff" class="hidden max-w-5xl mx-auto p-4 space-y-6">
+    <!-- Staff Sub-navigation -->
+    <div class="flex flex-wrap gap-2 bg-white p-2 rounded-xl border border-stone-200 shadow-sm">
+      <button onclick="switchStaffTab('orders')" id="tab-staff-orders" class="px-4 py-2 rounded-lg text-sm font-bold bg-stone-900 text-white">
+        📦 รายการออเดอร์เข้า
+      </button>
+      <button onclick="switchStaffTab('add')" id="tab-staff-add" class="px-4 py-2 rounded-lg text-sm font-medium text-stone-700 hover:bg-stone-100">
+        ➕ เพิ่มสินค้าใหม่ในอนาคต
+      </button>
+      <button onclick="switchStaffTab('qr')" id="tab-staff-qr" class="px-4 py-2 rounded-lg text-sm font-medium text-stone-700 hover:bg-stone-100">
+        📱 QR Code ห้องเทรน
+      </button>
+    </div>
+
+    <!-- Staff Tab 1: Orders -->
+    <div id="staff-panel-orders" class="space-y-4"></div>
+
+    <!-- Staff Tab 2: Add New Product -->
+    <div id="staff-panel-add" class="hidden bg-white p-6 rounded-xl border border-stone-200 shadow-sm max-w-2xl mx-auto">
+      <h2 class="font-bold text-xl text-stone-800 mb-4">➕ เพิ่มรายการสินค้าใหม่เข้าระบบ</h2>
+      <form onsubmit="addNewProduct(event)" class="space-y-4">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-sm font-medium text-stone-700 mb-1">รหัสสินค้า (SKU) *</label>
+            <input required type="text" id="new-sku" placeholder="เช่น TMP-009" class="w-full p-2.5 border border-stone-300 rounded-lg" />
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-stone-700 mb-1">ประเภทสินค้า *</label>
+            <input required type="text" id="new-category" list="cat-suggestions" placeholder="เลือกหรือพิมพ์ประเภทใหม่" class="w-full p-2.5 border border-stone-300 rounded-lg" />
+            <datalist id="cat-suggestions">
+              <option value="อุปกรณ์บาร์" />
+              <option value="เมล็ดกาแฟ" />
+              <option value="เครื่องชงและเครื่องบด" />
+              <option value="ไซรัปและวัตถุดิบ" />
+              <option value="แก้วและบรรจุภัณฑ์" />
+            </datalist>
+          </div>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-stone-700 mb-1">ชื่อสินค้า *</label>
+          <input required type="text" id="new-name" placeholder="เช่น กาดริปคอห่านไฟฟ้า 800ml" class="w-full p-2.5 border border-stone-300 rounded-lg" />
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div>
+            <label class="block text-sm font-medium text-stone-700 mb-1">ยี่ห้อ (Brand)</label>
+            <input type="text" id="new-brand" placeholder="เช่น Brewista" class="w-full p-2.5 border border-stone-300 rounded-lg" />
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-stone-700 mb-1">สี (Color)</label>
+            <input type="text" id="new-color" placeholder="เช่น ดำด้าน / ขาว" class="w-full p-2.5 border border-stone-300 rounded-lg" />
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-stone-700 mb-1">ราคา (บาท) *</label>
+            <input required type="number" id="new-price" placeholder="0" class="w-full p-2.5 border border-stone-300 rounded-lg" />
+          </div>
+        </div>
+        <button type="submit" class="w-full bg-amber-700 hover:bg-amber-800 text-white font-bold py-3 rounded-xl shadow-md transition">
+          บันทึกสินค้าเข้าระบบ
+        </button>
+      </form>
+    </div>
+
+    <!-- Staff Tab 3: QR Code -->
+    <div id="staff-panel-qr" class="hidden bg-white p-8 rounded-xl border border-stone-200 shadow-sm max-w-md mx-auto text-center space-y-4">
+      <h2 class="font-bold text-xl text-stone-800">QR Code สำหรับวางในห้องเทรน</h2>
+      <p class="text-sm text-stone-500">ให้ผู้เรียนสแกนเพื่อเลือกสั่งสินค้า เซลล์หน้าร้านจะได้รับรายการทันที</p>
+      <div id="qrcode-container" class="flex justify-center p-4 bg-white border-2 border-dashed border-stone-300 rounded-xl"></div>
+      <p id="current-url-text" class="text-xs font-mono text-stone-400 break-all"></p>
+      <button onclick="window.print()" class="bg-stone-800 text-white px-6 py-2 rounded-lg text-sm font-medium">
+        พิมพ์ป้าย QR Code
+      </button>
+    </div>
+  </section>
+
+  <script>
+    const INITIAL_PRODUCTS = [
+      { id: '1', sku: 'TMP-001', name: 'Tamper หน้าเรียบ 58mm', category: 'อุปกรณ์บาร์', brand: 'MHW-3BOMBER', color: 'ดำด้าน', price: 890 },
+      { id: '2', sku: 'PIT-002', name: 'Pitcher สตีมนม ปากแหลม 600ml', category: 'อุปกรณ์บาร์', brand: 'WPM', color: 'เงินสแตนเลส', price: 1250 },
+      { id: '3', sku: 'BN-101', name: 'เมล็ดกาแฟ House Blend (คั่วกลาง-เข้ม) 500g', category: 'เมล็ดกาแฟ', brand: 'Roastery Lab', color: '-', price: 450 },
+      { id: '4', sku: 'SCL-005', name: 'ตาชั่งดิจิทัลจับเวลา', category: 'อุปกรณ์บาร์', brand: 'Timemore', color: 'ขาว', price: 1690 },
+      { id: '5', sku: 'SYR-012', name: 'ไซรัปวานิลลา 750ml', category: 'ไซรัปและวัตถุดิบ', brand: 'Monin', color: 'ใส', price: 320 }
+    ];
+
+    let products = JSON.parse(localStorage.getItem('barista_products')) || INITIAL_PRODUCTS;
+    if (!localStorage.getItem('barista_products')) {
+      localStorage.setItem('barista_products', JSON.stringify(INITIAL_PRODUCTS));
+    }
+    let orders = JSON.parse(localStorage.getItem('barista_orders')) || [];
+    let cart = [];
+    let selectedCategory = 'ทั้งหมด';
+
+    const channel = new BroadcastChannel('barista_order_sync');
+    channel.onmessage = (event) => {
+      if (event.data.type === 'SYNC_ORDERS') {
+        orders = JSON.parse(localStorage.getItem('barista_orders')) || [];
+        updateBadge();
+        renderOrders();
+      } else if (event.data.type === 'SYNC_PRODUCTS') {
+        products = JSON.parse(localStorage.getItem('barista_products')) || [];
+        renderCategories();
+        renderCustomerProducts();
+      }
+    };
+
+    function switchMode(mode) {
+      const custView = document.getElementById('view-customer');
+      const staffView = document.getElementById('view-staff');
+      const btnCust = document.getElementById('btn-mode-customer');
+      const btnStaff = document.getElementById('btn-mode-staff');
+
+      if (mode === 'customer') {
+        custView.classList.remove('hidden');
+        staffView.classList.add('hidden');
+        btnCust.className = 'px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-500 text-stone-950';
+        btnStaff.className = 'px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-800 text-amber-100 hover:bg-amber-700';
+      } else {
+        custView.classList.add('hidden');
+        staffView.classList.remove('hidden');
+        btnStaff.className = 'px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-500 text-stone-950';
+        btnCust.className = 'px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-800 text-amber-100 hover:bg-amber-700';
+        renderOrders();
+      }
+    }
+
+    function switchStaffTab(tab) {
+      ['orders', 'add', 'qr'].forEach(t => {
+        document.getElementById(`staff-panel-${t}`).classList.add('hidden');
+        document.getElementById(`tab-staff-${t}`).className = 'px-4 py-2 rounded-lg text-sm font-medium text-stone-700 hover:bg-stone-100';
+      });
+      document.getElementById(`staff-panel-${tab}`).classList.remove('hidden');
+      document.getElementById(`tab-staff-${tab}`).className = 'px-4 py-2 rounded-lg text-sm font-bold bg-stone-900 text-white';
+
+      if (tab === 'qr') {
+        const container = document.getElementById('qrcode-container');
+        container.innerHTML = '';
+        new QRCode(container, { text: window.location.href, width: 200, height: 200 });
+        document.getElementById('current-url-text').innerText = window.location.href;
+      }
+    }
+
+    function renderCategories() {
+      const cats = ['ทั้งหมด', ...new Set(products.map(p => p.category))];
+      const container = document.getElementById('category-tabs');
+      container.innerHTML = cats.map(cat => `
+        <button onclick="selectCategory('${cat}')"
+          class="px-4 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition ${
+            selectedCategory === cat ? 'bg-amber-800 text-white' : 'bg-white text-stone-700 border border-stone-200 hover:bg-stone-50'
+          }">
+          ${cat}
+        </button>
+      `).join('');
+    }
+
+    function selectCategory(cat) {
+      selectedCategory = cat;
+      renderCategories();
+      renderCustomerProducts();
+    }
+
+    function renderCustomerProducts() {
+      const query = document.getElementById('search-input').value.toLowerCase();
+      const filtered = products.filter(p => {
+        const matchCat = selectedCategory === 'ทั้งหมด' || p.category === selectedCategory;
+        const matchSearch = p.name.toLowerCase().includes(query) || p.sku.toLowerCase().includes(query) ||
+                            p.brand.toLowerCase().includes(query) || p.color.toLowerCase().includes(query);
+        return matchCat && matchSearch;
+      });
+
+      const grid = document.getElementById('product-grid');
+      grid.innerHTML = filtered.map(p => {
+        const inCart = cart.find(item => item.id === p.id);
+        return `
+          <div class="bg-white p-4 rounded-xl border border-stone-200 shadow-sm flex flex-col justify-between">
+            <div>
+              <div class="flex justify-between items-start gap-2">
+                <span class="text-xs font-mono bg-stone-100 text-stone-600 px-2 py-0.5 rounded">รหัส: ${p.sku}</span>
+                <span class="text-xs bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full font-medium">${p.category}</span>
+              </div>
+              <h3 class="font-bold text-stone-900 text-base mt-2">${p.name}</h3>
+              <div class="text-xs text-stone-500 mt-1 space-x-3">
+                <span>ยี่ห้อ: <strong class="text-stone-700">${p.brand}</strong></span>
+                <span>สี: <strong class="text-stone-700">${p.color}</strong></span>
+              </div>
+            </div>
+            <div class="flex justify-between items-center mt-4 pt-3 border-t border-stone-100">
+              <span class="font-bold text-lg text-amber-900">฿${p.price.toLocaleString()}</span>
+              ${inCart ? `
+                <div class="flex items-center gap-3 bg-stone-100 rounded-lg p-1">
+                  <button onclick="updateCart('${p.id}', -1)" class="w-7 h-7 bg-white rounded shadow-sm font-bold">-</button>
+                  <span class="font-bold text-sm w-4 text-center">${inCart.quantity}</span>
+                  <button onclick="updateCart('${p.id}', 1)" class="w-7 h-7 bg-white rounded shadow-sm font-bold">+</button>
+                </div>
+              ` : `
+                <button onclick="addToCart('${p.id}')" class="bg-amber-800 hover:bg-amber-900 text-white text-sm px-4 py-2 rounded-lg font-medium">
+                  + เลือกสินค้า
+                </button>
+              `}
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function addToCart(id) {
+      const prod = products.find(p => p.id === id);
+      if (!prod) return;
+      cart.push({ ...prod, quantity: 1 });
+      updateCartUI();
+      renderCustomerProducts();
+    }
+
+    function updateCart(id, delta) {
+      cart = cart.map(item => item.id === id ? { ...item, quantity: item.quantity + delta } : item)
+                 .filter(item => item.quantity > 0);
+      updateCartUI();
+      renderCustomerProducts();
+    }
+
+    function updateCartUI() {
+      const bar = document.getElementById('cart-bar');
+      if (cart.length === 0) {
+        bar.classList.add('hidden');
+        return;
+      }
+      bar.classList.remove('hidden');
+      document.getElementById('cart-count').innerText = cart.reduce((s, i) => s + i.quantity, 0);
+      document.getElementById('cart-total').innerText = cart.reduce((s, i) => s + i.price * i.quantity, 0).toLocaleString();
+    }
+
+    function submitOrder() {
+      const customerName = document.getElementById('customer-name').value.trim();
+      if (!customerName) {
+        alert('กรุณาระบุชื่อของคุณ หรือ หมายเลขโต๊ะในห้องเทรนครับ');
+        return;
+      }
+      const newOrder = {
+        id: 'ORD-' + Date.now().toString().slice(-4),
+        customerName,
+        items: [...cart],
+        totalAmount: cart.reduce((s, i) => s + i.price * i.quantity, 0),
+        status: 'pending',
+        createdAt: new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })
+      };
+      orders.unshift(newOrder);
+      localStorage.setItem('barista_orders', JSON.stringify(orders));
+      channel.postMessage({ type: 'SYNC_ORDERS' });
+
+      cart = [];
+      updateCartUI();
+      renderCustomerProducts();
+      updateBadge();
+
+      const banner = document.getElementById('order-success-banner');
+      banner.classList.remove('hidden');
+      setTimeout(() => banner.classList.add('hidden'), 4000);
+    }
+
+    function updateBadge() {
+      const activeCount = orders.filter(o => o.status !== 'completed').length;
+      document.getElementById('pending-badge').innerText = activeCount;
+    }
+
+    function updateOrderStatus(orderId, status) {
+      orders = orders.map(o => o.id === orderId ? { ...o, status } : o);
+      localStorage.setItem('barista_orders', JSON.stringify(orders));
+      channel.postMessage({ type: 'SYNC_ORDERS' });
+      updateBadge();
+      renderOrders();
+    }
+
+    function renderOrders() {
+      const container = document.getElementById('staff-panel-orders');
+      if (orders.length === 0) {
+        container.innerHTML = `<div class="bg-white p-12 rounded-xl text-center text-stone-500 border border-stone-200">ยังไม่มีรายการสั่งซื้อจากห้องเทรนในขณะนี้</div>`;
+        return;
+      }
+      container.innerHTML = orders.map(order => {
+        const borderClass = order.status === 'pending' ? 'border-l-rose-500' : order.status === 'preparing' ? 'border-l-amber-500' : 'border-l-emerald-500 opacity-75';
+        return `
+          <div class="bg-white p-5 rounded-xl border-l-8 ${borderClass} shadow-sm">
+            <div class="flex flex-wrap justify-between items-start gap-2 border-b border-stone-100 pb-3">
+              <div>
+                <span class="text-xs font-mono bg-slate-100 px-2 py-1 rounded text-slate-600 mr-2">#${order.id}</span>
+                <span class="font-bold text-lg text-slate-900">${order.customerName}</span>
+                <span class="text-xs text-slate-400 ml-3">สั่งเมื่อ ${order.createdAt} น.</span>
+              </div>
+              <div>
+                ${order.status === 'pending' ? `<button onclick="updateOrderStatus('${order.id}', 'preparing')" class="bg-amber-500 hover:bg-amber-600 text-white px-3 py-1.5 rounded-lg text-sm font-medium">⏱ รับออเดอร์ / กำลังจัดของ</button>` : ''}
+                ${order.status === 'preparing' ? `<button onclick="updateOrderStatus('${order.id}', 'completed')" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg text-sm font-medium">✅ จัดของเสร็จพร้อมส่งมอบ</button>` : ''}
+                ${order.status === 'completed' ? `<span class="text-emerald-600 font-bold text-sm">✔ เตรียมเสร็จแล้ว</span>` : ''}
+              </div>
+            </div>
+            <div class="mt-3 overflow-x-auto">
+              <table class="w-full text-sm text-left">
+                <thead class="bg-slate-50 text-slate-600">
+                  <tr>
+                    <th class="p-2">รหัส SKU</th>
+                    <th class="p-2">ชื่อสินค้า</th>
+                    <th class="p-2">ยี่ห้อ</th>
+                    <th class="p-2">สี</th>
+                    <th class="p-2 text-center">จำนวน</th>
+                    <th class="p-2 text-right">รวม</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                  ${order.items.map(i => `
+                    <tr>
+                      <td class="p-2 font-mono font-bold">${i.sku}</td>
+                      <td class="p-2 font-medium">${i.name}</td>
+                      <td class="p-2">${i.brand}</td>
+                      <td class="p-2">${i.color}</td>
+                      <td class="p-2 text-center font-bold text-amber-700">x${i.quantity}</td>
+                      <td class="p-2 text-right">฿${(i.price * i.quantity).toLocaleString()}</td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+            <div class="mt-3 pt-2 border-t border-slate-100 text-right font-bold text-lg">
+              ยอดรวมสุทธิ: ฿${order.totalAmount.toLocaleString()}
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function addNewProduct(e) {
+      e.preventDefault();
+      const newProd = {
+        id: Date.now().toString(),
+        sku: document.getElementById('new-sku').value.trim(),
+        category: document.getElementById('new-category').value.trim(),
+        name: document.getElementById('new-name').value.trim(),
+        brand: document.getElementById('new-brand').value.trim() || '-',
+        color: document.getElementById('new-color').value.trim() || '-',
+        price: Number(document.getElementById('new-price').value)
+      };
+      products.unshift(newProd);
+      localStorage.setItem('barista_products', JSON.stringify(products));
+      channel.postMessage({ type: 'SYNC_PRODUCTS' });
+
+      e.target.reset();
+      renderCategories();
+      renderCustomerProducts();
+      alert('เพิ่มสินค้าใหม่เข้าระบบเรียบร้อยแล้ว!');
+    }
+
+    // Initial Render
+    renderCategories();
+    renderCustomerProducts();
+    updateBadge();
+  </script>
+</body>
+</html>
